@@ -15,6 +15,10 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.11'
 }
 
+tasks.withType(JavaCompile) {
+    it.options.encoding = 'UTF-8'
+}
+
 jar {
     manifest.attributes 'Main-Class': 'org.tmurakam.android.emufix.Main'
     baseName = 'emufix-proxy'
