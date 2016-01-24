@@ -30,17 +30,17 @@ public class Server {
     public void run() {
         try (ServerSocket server = new ServerSocket(fLocalPort)) {
             Socket socket = server.accept();
-            new ProxyThread(socket).run();
+            new ClientForwarderThread(socket).run();
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private class ProxyThread extends Thread {
+    private class ClientForwarderThread extends Thread {
         private Socket fClient;
         private Socket fServer = null;
 
-        public ProxyThread(Socket client) {
+        public ClientForwarderThread(Socket client) {
             fClient = client;
         }
 
@@ -55,6 +55,8 @@ public class Server {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+
+                new ServerForwarderThread(fClient, fServer).run();
 
                 forwarder();
             } catch (IOException e) {
@@ -72,48 +74,57 @@ public class Server {
         }
 
         private void forwarder() throws IOException {
-            ProxyState state = ProxyState.READING_STATUS_LINE;
-
             InputStream clientIn = fClient.getInputStream();
-            OutputStream clientOut = fClient.getOutputStream();
-
-            InputStream serverIn = fServer.getInputStream();
             OutputStream serverOut = fServer.getOutputStream();
 
             final int BufferSize = 10240;
             byte[] clientBuffer = new byte[BufferSize];
-            byte[] serverBuffer = new byte[BufferSize];
-
-            int lineLength = 0;
 
             while (true) {
                 // proxy client -> server
-                int len = clientIn.available();
-                if (len > 0) {
-                    if (len > BufferSize) {
-                        len = BufferSize;
-                    }
-                    len = clientIn.read(clientBuffer, 0, len);
-                    if (len > 0) {
-                        serverOut.write(clientBuffer, 0, len);
-                    }
-                }
+                int len = clientIn.read(clientBuffer, 0, clientBuffer.length);
+                if (len < 0) break;
 
-                // proxy server -> client
-                len = serverIn.available();
-                if (len == 0) continue;
+                serverOut.write(clientBuffer, 0, len);
+            }
 
+            clientIn.close();
+            serverOut.close();
+        }
+    }
+
+    private static class ServerForwarderThread extends Thread {
+        private Socket fClient;
+        private Socket fServer;
+
+        public ServerForwarderThread(Socket client, Socket server) {
+            fClient = client;
+            fServer = server;
+        }
+
+        private void forwarder() throws IOException {
+            ProxyState state = ProxyState.READING_STATUS_LINE;
+
+            InputStream serverIn = fServer.getInputStream();
+            OutputStream clientOut = fClient.getOutputStream();
+
+            final int BufferSize = 10240;
+            byte[] serverBuffer = new byte[BufferSize];
+
+            int headerLength = 0;
+
+            while (true) {
                 int ch;
+                boolean end = false;
 
                 switch (state) {
                     case READING_BODY:
-                        if (len > BufferSize) {
-                            len = BufferSize;
+                        int len = serverIn.read(serverBuffer, 0, serverBuffer.length);
+                        if (len < 0) {
+                            end = true;
+                            break;
                         }
-                        len = serverIn.read(serverBuffer, 0, len);
-                        if (len > 0) {
-                            clientOut.write(serverBuffer, 0, len);
-                        }
+                        clientOut.write(serverBuffer, 0, len);
                         break;
 
                     case READING_STATUS_LINE:
@@ -121,27 +132,30 @@ public class Server {
                         clientOut.write(ch);
                         if (ch == '\n') {
                             state = ProxyState.READING_HEADERS;
-                            lineLength = 0;
                         }
                         break;
 
                     case READING_HEADERS:
                         ch = serverIn.read();
                         if (ch != '\r' && ch != '\n') {
-                            lineLength++;
+                            headerLength++;
                         }
-                        if (ch == '\n') {
-                            if (lineLength == 0) {
+                        else if (ch == '\n') {
+                            if (headerLength == 0) {
                                 clientOut.write('\r');
                                 clientOut.write('\n');
                                 state = ProxyState.READING_BODY;
                             }
-                            lineLength = 0;
+                            headerLength = 0;
                         }
                         break;
-                    }
                 }
+
+                if (end) break;
             }
+
+            serverIn.close();
+            clientOut.close();
         }
     }
 }
