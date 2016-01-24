@@ -102,6 +102,14 @@ public class Server {
             fServer = server;
         }
 
+        public void run() {
+            try {
+                forwarder();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
         private void forwarder() throws IOException {
             ProxyState state = ProxyState.READING_STATUS_LINE;
 
