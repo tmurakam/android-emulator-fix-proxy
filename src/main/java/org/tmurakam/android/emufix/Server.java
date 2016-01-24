@@ -117,6 +117,10 @@ public class Server {
                 switch (state) {
                     case READING_STATUS_LINE:
                         ch = in.read();
+                        if (ch == -1) {
+                            end = true;
+                            break;
+                        }
                         out.write(ch);
                         if (ch == '\n') {
                             state = ProxyState.READING_HEADERS;
@@ -125,6 +129,10 @@ public class Server {
 
                     case READING_HEADERS:
                         ch = in.read();
+                        if (ch == -1) {
+                            end = true;
+                            break;
+                        }
                         if (!isConnectMethod) { // skip response header for CONNECT method.
                             out.write(ch);
                         }
@@ -188,7 +196,11 @@ public class Server {
 
                 while (true) {
                     int len = in.read(buffer);
-                    if (len < 0) break;
+                    if (len < 0) {
+                        fInSocket.shutdownInput();
+                        fOutSocket.shutdownOutput();
+                        break;
+                    }
 
                     out.write(buffer, 0, len);
                 }
@@ -196,10 +208,6 @@ public class Server {
                 logger.warning(e.getMessage());
                 fInSocket.close();
                 fOutSocket.close();
-            }
-            finally {
-                fInSocket.shutdownInput();
-                fOutSocket.shutdownOutput();
             }
         }
     }
