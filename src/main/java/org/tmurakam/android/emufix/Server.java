@@ -52,8 +52,10 @@ public class Server {
                 } catch (UnknownHostException e) {
                     //e.printStackTrace();
                     System.err.println("Unknown host: " + fProxyServer);
+                    return;
                 } catch (IOException e) {
                     e.printStackTrace();
+                    return;
                 }
 
                 // クライアントから先頭6バイトを読む : CONNECT メソッド判別
@@ -63,7 +65,10 @@ public class Server {
 
                 String strHead = new String(head, "UTF-8");
 
+                // client -> server フォワーダ起動
                 new PlainForwarderThread(fClient, fServer).start();
+
+                // server -> client フォワーダ起動
                 forwarder(strHead.equals("CONNECT"));
             } catch (IOException e) {
                 e.printStackTrace();
@@ -80,14 +85,13 @@ public class Server {
         }
 
         private void forwarder(boolean isConnectMethod) throws IOException {
-            ProxyState state = ProxyState.READING_STATUS_LINE;
-
-            InputStream serverIn = fServer.getInputStream();
-            OutputStream clientOut = fClient.getOutputStream();
+            InputStream in = fServer.getInputStream();
+            OutputStream out = fClient.getOutputStream();
 
             final int BufferSize = 10240;
             byte[] serverBuffer = new byte[BufferSize];
 
+            ProxyState state = ProxyState.READING_STATUS_LINE;
             int headerLength = 0;
 
             while (true) {
@@ -96,18 +100,17 @@ public class Server {
 
                 switch (state) {
                     case READING_STATUS_LINE:
-                        ch = serverIn.read();
-                        clientOut.write(ch);
+                        ch = in.read();
+                        out.write(ch);
                         if (ch == '\n') {
                             state = ProxyState.READING_HEADERS;
                         }
                         break;
 
                     case READING_HEADERS:
-                        ch = serverIn.read();
-                        if (isConnectMethod) {
-                            // CONNECT の場合は header をスキップする
-                            clientOut.write(ch);
+                        ch = in.read();
+                        if (!isConnectMethod) { // skip response header for CONNECT method.
+                            out.write(ch);
                         }
                         if (ch != '\r' && ch != '\n') {
                             headerLength++;
@@ -115,8 +118,8 @@ public class Server {
                         else if (ch == '\n') {
                             if (headerLength == 0) {
                                 if (isConnectMethod) {
-                                    clientOut.write('\r');
-                                    clientOut.write('\n');
+                                    out.write('\r');
+                                    out.write('\n');
                                 }
                                 state = ProxyState.READING_BODY;
                             }
@@ -125,20 +128,20 @@ public class Server {
                         break;
 
                     case READING_BODY:
-                        int len = serverIn.read(serverBuffer, 0, serverBuffer.length);
+                        int len = in.read(serverBuffer);
                         if (len < 0) {
                             end = true;
                             break;
                         }
-                        clientOut.write(serverBuffer, 0, len);
+                        out.write(serverBuffer, 0, len);
                         break;
                 }
 
                 if (end) break;
             }
 
-            serverIn.close();
-            clientOut.close();
+            in.close();
+            out.close();
         }
     }
 
@@ -171,7 +174,7 @@ public class Server {
                 byte[] buffer = new byte[BufferSize];
 
                 while (true) {
-                    int len = in.read(buffer, 0, buffer.length);
+                    int len = in.read(buffer);
                     if (len < 0) break;
 
                     out.write(buffer, 0, len);
