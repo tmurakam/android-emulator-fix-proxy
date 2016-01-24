@@ -5,6 +5,9 @@ version '1.0'
 apply plugin: 'java'
 apply plugin: 'application'
 
+applicationName = 'emufix-proxy'
+mainClassName = 'org.tmurakam.android.emufix.Main'
+
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
@@ -21,8 +24,8 @@ tasks.withType(JavaCompile) {
 }
 
 jar {
-    manifest.attributes 'Main-Class': 'org.tmurakam.android.emufix.Main'
-    baseName = 'emufix-proxy'
+    manifest.attributes 'Main-Class': mainClassName
+    baseName = applicationName
 }
 
 task wrapper(type: Wrapper) {

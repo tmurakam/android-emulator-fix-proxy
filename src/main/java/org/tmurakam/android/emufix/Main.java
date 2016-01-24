@@ -19,6 +19,6 @@ public class Main {
 
     private static void usage() {
         System.out.println("Usage: emufix-proxy [local port] [upstream proxy addr] [upstream proxy port]");
-        System.exit(1);
+        System.exit(0);
     }
 }
