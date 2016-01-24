@@ -3,6 +3,7 @@ package org.tmurakam.android.emufix;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.UnknownHostException;
 
 /**
@@ -71,7 +72,7 @@ public class Server {
                 // server -> client フォワーダ起動
                 forwarder(strHead.equals("CONNECT"));
             } catch (IOException e) {
-                e.printStackTrace();
+                System.err.println(e.getMessage());
             } finally {
                 try {
                     if (fServer != null) {
@@ -139,9 +140,6 @@ public class Server {
 
                 if (end) break;
             }
-
-            in.close();
-            out.close();
         }
     }
 
@@ -179,13 +177,14 @@ public class Server {
 
                     out.write(buffer, 0, len);
                 }
-            }
-            finally {
-                in.close();
-                out.close();
-
+            } catch (SocketException e) {
+                System.err.println(e.getMessage());
                 fInSocket.close();
                 fOutSocket.close();
+            }
+            finally {
+                fInSocket.shutdownInput();
+                fOutSocket.shutdownOutput();
             }
         }
     }
