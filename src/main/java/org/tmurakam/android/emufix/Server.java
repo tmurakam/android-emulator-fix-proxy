@@ -1,8 +1,6 @@
 package org.tmurakam.android.emufix;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -58,9 +56,15 @@ public class Server {
                     e.printStackTrace();
                 }
 
-                new ClientForwarderThread(fClient, fServer).start();
+                // クライアントから先頭6バイトを読む : CONNECT メソッド判別
+                byte[] head = new byte[6];
+                int len = fClient.getInputStream().read(head);
+                fServer.getOutputStream().write(head, 0, len);
 
-                forwarder();
+                String strHead = new String(head, "UTF-8");
+
+                new PlainForwarderThread(fClient, fServer).start();
+                forwarder(strHead.equals("CONNECT"));
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
@@ -75,7 +79,7 @@ public class Server {
             }
         }
 
-        private void forwarder() throws IOException {
+        private void forwarder(boolean isConnectMethod) throws IOException {
             ProxyState state = ProxyState.READING_STATUS_LINE;
 
             InputStream serverIn = fServer.getInputStream();
@@ -91,15 +95,6 @@ public class Server {
                 boolean end = false;
 
                 switch (state) {
-                    case READING_BODY:
-                        int len = serverIn.read(serverBuffer, 0, serverBuffer.length);
-                        if (len < 0) {
-                            end = true;
-                            break;
-                        }
-                        clientOut.write(serverBuffer, 0, len);
-                        break;
-
                     case READING_STATUS_LINE:
                         ch = serverIn.read();
                         clientOut.write(ch);
@@ -110,18 +105,32 @@ public class Server {
 
                     case READING_HEADERS:
                         ch = serverIn.read();
-                        //clientOut.write(ch); // debug
+                        if (isConnectMethod) {
+                            // CONNECT の場合は header をスキップする
+                            clientOut.write(ch);
+                        }
                         if (ch != '\r' && ch != '\n') {
                             headerLength++;
                         }
                         else if (ch == '\n') {
                             if (headerLength == 0) {
-                                clientOut.write('\r');
-                                clientOut.write('\n');
+                                if (isConnectMethod) {
+                                    clientOut.write('\r');
+                                    clientOut.write('\n');
+                                }
                                 state = ProxyState.READING_BODY;
                             }
                             headerLength = 0;
                         }
+                        break;
+
+                    case READING_BODY:
+                        int len = serverIn.read(serverBuffer, 0, serverBuffer.length);
+                        if (len < 0) {
+                            end = true;
+                            break;
+                        }
+                        clientOut.write(serverBuffer, 0, len);
                         break;
                 }
 
@@ -133,13 +142,16 @@ public class Server {
         }
     }
 
-    private static class ClientForwarderThread extends Thread {
-        private Socket fClient;
-        private Socket fServer;
+    /**
+     * 無加工でフォワードするスレッド
+     */
+    private static class PlainForwarderThread extends Thread {
+        private Socket fInSocket;
+        private Socket fOutSocket;
 
-        public ClientForwarderThread(Socket client, Socket server) {
-            fClient = client;
-            fServer = server;
+        public PlainForwarderThread(Socket inSocket, Socket outSocket) {
+            fInSocket = inSocket;
+            fOutSocket = outSocket;
         }
 
         public void run() {
@@ -151,27 +163,26 @@ public class Server {
         }
 
         private void forwarder() throws IOException {
-            InputStream clientIn = fClient.getInputStream();
-            OutputStream serverOut = fServer.getOutputStream();
+            InputStream in = fInSocket.getInputStream();
+            OutputStream out = fOutSocket.getOutputStream();
 
             try {
                 final int BufferSize = 10240;
-                byte[] clientBuffer = new byte[BufferSize];
+                byte[] buffer = new byte[BufferSize];
 
                 while (true) {
-                    // proxy client -> server
-                    int len = clientIn.read(clientBuffer, 0, clientBuffer.length);
+                    int len = in.read(buffer, 0, buffer.length);
                     if (len < 0) break;
 
-                    serverOut.write(clientBuffer, 0, len);
+                    out.write(buffer, 0, len);
                 }
             }
             finally {
-                clientIn.close();
-                serverOut.close();
+                in.close();
+                out.close();
 
-                fClient.close();
-                fServer.close();
+                fInSocket.close();
+                fOutSocket.close();
             }
         }
     }
