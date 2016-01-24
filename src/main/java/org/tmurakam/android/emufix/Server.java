@@ -60,17 +60,22 @@ public class Server {
                 }
 
                 // クライアントから先頭6バイトを読む : CONNECT メソッド判別
-                byte[] head = new byte[6];
-                int len = fClient.getInputStream().read(head);
-                fServer.getOutputStream().write(head, 0, len);
+                InputStream in = fClient.getInputStream();
 
-                String strHead = new String(head, "UTF-8");
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                while (true) {
+                    int ch = in.read();
+                    bos.write(ch);
+                    if (ch == -1 || ch == '\n') break;
+                }
+                String requestLine = bos.toString("UTF-8");
+                fServer.getOutputStream().write(bos.toByteArray());
 
                 // client -> server フォワーダ起動
                 new PlainForwarderThread(fClient, fServer).start();
 
                 // server -> client フォワーダ起動
-                forwarder(strHead.equals("CONNECT"));
+                forwarder(requestLine.startsWith("CONNECT"));
             } catch (IOException e) {
                 System.err.println(e.getMessage());
             } finally {
