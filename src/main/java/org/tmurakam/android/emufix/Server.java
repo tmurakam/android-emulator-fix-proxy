@@ -5,6 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.logging.Logger;
 
 /**
  * Created by tmurakam on 2016/01/24.
@@ -13,6 +14,8 @@ public class Server {
     private int fLocalPort;
     private String fProxyServer;
     private int fProxyPort;
+
+    private static Logger logger = Logger.getLogger("Server");
 
     private enum ProxyState {
         READING_STATUS_LINE,
@@ -30,6 +33,8 @@ public class Server {
         try (ServerSocket server = new ServerSocket(fLocalPort)) {
             while (true) {
                 Socket socket = server.accept();
+
+                logger.info("Client connected");
                 new ServerForwarderThread(socket).start();
             }
         } catch (IOException e) {
@@ -51,11 +56,10 @@ public class Server {
                 try {
                     fServer = new Socket(fProxyServer, fProxyPort);
                 } catch (UnknownHostException e) {
-                    //e.printStackTrace();
-                    System.err.println("Unknown host: " + fProxyServer);
+                    logger.warning("Unknown proxy host: " + e.getMessage());
                     return;
                 } catch (IOException e) {
-                    System.err.println(e.getMessage());
+                    logger.warning("Connect Proxy Server failed: " + e.getMessage());
                     return;
                 }
 
@@ -74,6 +78,8 @@ public class Server {
                 String requestLine = bos.toString("UTF-8");
                 fServer.getOutputStream().write(bos.toByteArray());
 
+                logger.info(requestLine);
+
                 // client -> server フォワーダ起動
                 new PlainForwarderThread(fClient, fServer).start();
 
@@ -81,7 +87,7 @@ public class Server {
                 forwarder(requestLine.startsWith("CONNECT"));
             }
             catch (Exception e) {
-                System.err.println(e.getMessage());
+                logger.warning(e.getMessage());
             }
             finally {
                 try {
@@ -167,7 +173,7 @@ public class Server {
             try {
                 forwarder();
             } catch (IOException e) {
-                e.printStackTrace();
+                logger.warning(e.getMessage());
             }
         }
 
@@ -186,7 +192,7 @@ public class Server {
                     out.write(buffer, 0, len);
                 }
             } catch (SocketException e) {
-                System.err.println(e.getMessage());
+                logger.warning(e.getMessage());
                 fInSocket.close();
                 fOutSocket.close();
             }
