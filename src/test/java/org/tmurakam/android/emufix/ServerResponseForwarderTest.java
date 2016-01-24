@@ -22,7 +22,7 @@ public class ServerResponseForwarderTest {
         ByteArrayInputStream in = new ByteArrayInputStream(sb.toString().getBytes("UTF-8"));
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-        new ServerResponseForwarder(in, out, true).forward();
+        ServerResponseForwarder.forward(in, out, true);
 
         String os = out.toString("UTF-8");
         assertEquals("HTTP/1.1 200 OK\r\n\r\nContent", os);
@@ -39,7 +39,7 @@ public class ServerResponseForwarderTest {
         ByteArrayInputStream in = new ByteArrayInputStream(sb.toString().getBytes("UTF-8"));
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
-        new ServerResponseForwarder(in, out, false).forward();
+        ServerResponseForwarder.forward(in, out, false);
 
         String os = out.toString("UTF-8");
         assertEquals(sb.toString(), os);

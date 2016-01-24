@@ -8,82 +8,41 @@ import java.io.OutputStream;
  * Server Response Forwarder
  */
 public class ServerResponseForwarder {
-    private enum ProxyState {
-        READING_STATUS_LINE,
-        READING_HEADERS,
-        READING_BODY
-    }
+    /**
+     * Forward proxy server response
+     * @param in InputStream from proxy server
+     * @param out OutputStream to client
+     * @param isConnectMethod true for CONNECT method
+     * @throws IOException
+     */
+    public static void forward(InputStream in, OutputStream out, boolean isConnectMethod) throws IOException {
+        // read status line
+        String line = Utils.readLine(in);
+        out.write(line.getBytes());
 
+        // read headers
+        while(true) {
+            line = Utils.readLine(in);
 
-    private InputStream in;
-    private OutputStream out;
-    private boolean isConnectMethod;
+            if (line.equals("\r\n") || line.equals("\n")) {
+                out.write(line.getBytes());
+                break; // end of header
+            }
+            if (!isConnectMethod) {
+                out.write(line.getBytes());
+            }
+        }
 
-    public ServerResponseForwarder(InputStream serverIn, OutputStream clientOut, boolean isConnectMethod) {
-        this.in = serverIn;
-        this.out = clientOut;
-        this.isConnectMethod = isConnectMethod;
-    }
-
-    public void forward() throws IOException {
+        // forward body
         final int BufferSize = 10240;
         byte[] serverBuffer = new byte[BufferSize];
 
-        ProxyState state = ProxyState.READING_STATUS_LINE;
-        int headerLength = 0;
-
         while (true) {
-            int ch;
-            boolean end = false;
-
-            switch (state) {
-                case READING_STATUS_LINE:
-                    ch = in.read();
-                    if (ch == -1) {
-                        end = true;
-                        break;
-                    }
-                    out.write(ch);
-                    if (ch == '\n') {
-                        state = ProxyState.READING_HEADERS;
-                    }
-                    break;
-
-                case READING_HEADERS:
-                    ch = in.read();
-                    if (ch == -1) {
-                        end = true;
-                        break;
-                    }
-                    if (!isConnectMethod) { // skip response header for CONNECT method.
-                        out.write(ch);
-                    }
-                    if (ch != '\r' && ch != '\n') {
-                        headerLength++;
-                    }
-                    else if (ch == '\n') {
-                        if (headerLength == 0) {
-                            if (isConnectMethod) {
-                                out.write('\r');
-                                out.write('\n');
-                            }
-                            state = ProxyState.READING_BODY;
-                        }
-                        headerLength = 0;
-                    }
-                    break;
-
-                case READING_BODY:
-                    int len = in.read(serverBuffer);
-                    if (len < 0) {
-                        end = true;
-                        break;
-                    }
-                    out.write(serverBuffer, 0, len);
-                    break;
+            int len = in.read(serverBuffer);
+            if (len < 0) {
+                break;
             }
-
-            if (end) break;
+            out.write(serverBuffer, 0, len);
         }
     }
 }

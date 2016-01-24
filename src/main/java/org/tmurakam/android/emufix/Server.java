@@ -59,18 +59,17 @@ public class Server {
                 }
 
                 // Read request line from client
-                byte[] requestLineBytes = Utils.readLine(fClient.getInputStream());
-                fServer.getOutputStream().write(requestLineBytes);
+                String requestLine = Utils.readLine(fClient.getInputStream());
+                fServer.getOutputStream().write(requestLine.getBytes("UTF-8"));
 
-                String requestLine = new String(requestLineBytes, "UTF-8");
                 logger.finer(requestLine);
 
                 // start client -> server forwarder
                 new PlainForwarderThread(fClient, fServer).start();
 
                 // run server -> client forwarder
-                new ServerResponseForwarder(fServer.getInputStream(), fClient.getOutputStream(), requestLine.startsWith("CONNECT"))
-                        .forward();
+                ServerResponseForwarder.forward(fServer.getInputStream(), fClient.getOutputStream(),
+                        requestLine.startsWith("CONNECT"));
             }
             catch (Exception e) {
                 logger.warning(e.getMessage());
