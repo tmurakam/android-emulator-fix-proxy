@@ -29,18 +29,20 @@ public class Server {
 
     public void run() {
         try (ServerSocket server = new ServerSocket(fLocalPort)) {
-            Socket socket = server.accept();
-            new ClientForwarderThread(socket).run();
+            while (true) {
+                Socket socket = server.accept();
+                new ServerForwarderThread(socket).start();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private class ClientForwarderThread extends Thread {
+    private class ServerForwarderThread extends Thread {
         private Socket fClient;
         private Socket fServer = null;
 
-        public ClientForwarderThread(Socket client) {
+        public ServerForwarderThread(Socket client) {
             fClient = client;
         }
 
@@ -56,7 +58,7 @@ public class Server {
                     e.printStackTrace();
                 }
 
-                new ServerForwarderThread(fClient, fServer).run();
+                new ClientForwarderThread(fClient, fServer).start();
 
                 forwarder();
             } catch (IOException e) {
@@ -70,43 +72,6 @@ public class Server {
                 } catch (IOException e) {
                     // ignore
                 }
-            }
-        }
-
-        private void forwarder() throws IOException {
-            InputStream clientIn = fClient.getInputStream();
-            OutputStream serverOut = fServer.getOutputStream();
-
-            final int BufferSize = 10240;
-            byte[] clientBuffer = new byte[BufferSize];
-
-            while (true) {
-                // proxy client -> server
-                int len = clientIn.read(clientBuffer, 0, clientBuffer.length);
-                if (len < 0) break;
-
-                serverOut.write(clientBuffer, 0, len);
-            }
-
-            clientIn.close();
-            serverOut.close();
-        }
-    }
-
-    private static class ServerForwarderThread extends Thread {
-        private Socket fClient;
-        private Socket fServer;
-
-        public ServerForwarderThread(Socket client, Socket server) {
-            fClient = client;
-            fServer = server;
-        }
-
-        public void run() {
-            try {
-                forwarder();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }
 
@@ -145,6 +110,7 @@ public class Server {
 
                     case READING_HEADERS:
                         ch = serverIn.read();
+                        //clientOut.write(ch); // debug
                         if (ch != '\r' && ch != '\n') {
                             headerLength++;
                         }
@@ -164,6 +130,49 @@ public class Server {
 
             serverIn.close();
             clientOut.close();
+        }
+    }
+
+    private static class ClientForwarderThread extends Thread {
+        private Socket fClient;
+        private Socket fServer;
+
+        public ClientForwarderThread(Socket client, Socket server) {
+            fClient = client;
+            fServer = server;
+        }
+
+        public void run() {
+            try {
+                forwarder();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        private void forwarder() throws IOException {
+            InputStream clientIn = fClient.getInputStream();
+            OutputStream serverOut = fServer.getOutputStream();
+
+            try {
+                final int BufferSize = 10240;
+                byte[] clientBuffer = new byte[BufferSize];
+
+                while (true) {
+                    // proxy client -> server
+                    int len = clientIn.read(clientBuffer, 0, clientBuffer.length);
+                    if (len < 0) break;
+
+                    serverOut.write(clientBuffer, 0, len);
+                }
+            }
+            finally {
+                clientIn.close();
+                serverOut.close();
+
+                fClient.close();
+                fServer.close();
+            }
         }
     }
 }
