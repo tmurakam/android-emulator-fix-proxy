@@ -1,7 +1,7 @@
 package org.tmurakam.android.emufix;
 
 /**
- * Created by tmurakam on 2016/01/24.
+ * Entry class
  */
 public class Main {
 

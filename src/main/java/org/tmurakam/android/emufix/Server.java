@@ -8,7 +8,7 @@ import java.net.UnknownHostException;
 import java.util.logging.Logger;
 
 /**
- * Created by tmurakam on 2016/01/24.
+ * Server main
  */
 public class Server {
     private int fLocalPort;
@@ -31,6 +31,7 @@ public class Server {
 
     public void run() {
         try (ServerSocket server = new ServerSocket(fLocalPort)) {
+            logger.info("Server started");
             while (true) {
                 Socket socket = server.accept();
 
