@@ -58,27 +58,17 @@ public class Server {
                     return;
                 }
 
-                // クライアントから先頭6バイトを読む : CONNECT メソッド判別
-                InputStream in = fClient.getInputStream();
-                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                // Read request line from client
+                byte[] requestLineBytes = Utils.readLine(fClient.getInputStream());
+                fServer.getOutputStream().write(requestLineBytes);
 
-                while (true) {
-                    int ch = in.read();
-                    bos.write(ch);
-                    if (ch == -1) {
-                        throw new RuntimeException("No request line");
-                    }
-                    if (ch == '\n') break;
-                }
-                String requestLine = bos.toString("UTF-8");
-                fServer.getOutputStream().write(bos.toByteArray());
-
+                String requestLine = new String(requestLineBytes, "UTF-8");
                 logger.finer(requestLine);
 
-                // client -> server フォワーダ起動
+                // start client -> server forwarder
                 new PlainForwarderThread(fClient, fServer).start();
 
-                // server -> client フォワーダ起動
+                // run server -> client forwarder
                 new ServerResponseForwarder(fServer.getInputStream(), fClient.getOutputStream(), requestLine.startsWith("CONNECT"))
                         .forward();
             }
@@ -87,8 +77,10 @@ public class Server {
             }
             finally {
                 try {
-                    fServer.close();
                     fClient.close();
+                    if (fServer != null) {
+                        fServer.close();
+                    }
                 } catch (IOException e) {
                     // ignore
                 }
@@ -97,7 +89,7 @@ public class Server {
     }
 
     /**
-     * 無加工でフォワードするスレッド
+     * Plain forwarder thread
      */
     private static class PlainForwarderThread extends Thread {
         private Socket fInSocket;
