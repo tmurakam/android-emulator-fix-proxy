@@ -3,7 +3,6 @@ package org.tmurakam.android.emufix;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.logging.Logger;
 
@@ -68,13 +67,14 @@ public class Server {
                 new PlainForwarderThread(fClient, fServer).start();
 
                 // run server -> client forwarder
-                ServerResponseForwarder.forward(fServer.getInputStream(), fClient.getOutputStream(),
+                Forwarder.forwardServerResponse(fServer.getInputStream(), fClient.getOutputStream(),
                         requestLine.startsWith("CONNECT"));
             }
             catch (Exception e) {
                 logger.warning(e.getMessage());
             }
             finally {
+                //logger.info("server closed");
                 try {
                     fClient.close();
                     if (fServer != null) {
@@ -101,34 +101,17 @@ public class Server {
 
         public void run() {
             try {
-                forwarder();
+                Forwarder.forward(fInSocket.getInputStream(), fOutSocket.getOutputStream());
             } catch (IOException e) {
                 logger.warning(e.getMessage());
-            }
-        }
-
-        private void forwarder() throws IOException {
-            InputStream in = fInSocket.getInputStream();
-            OutputStream out = fOutSocket.getOutputStream();
-
-            try {
-                final int BufferSize = 10240;
-                byte[] buffer = new byte[BufferSize];
-
-                while (true) {
-                    int len = in.read(buffer);
-                    if (len < 0) {
-                        fInSocket.shutdownInput();
-                        fOutSocket.shutdownOutput();
-                        break;
-                    }
-
-                    out.write(buffer, 0, len);
+                try {
+                    fInSocket.close();
+                    fOutSocket.close();
+                } catch (IOException e2) {
+                    // ignore
                 }
-            } catch (SocketException e) {
-                logger.warning(e.getMessage());
-                fInSocket.close();
-                fOutSocket.close();
+            } finally {
+                //logger.info("forwarder stopped");
             }
         }
     }
