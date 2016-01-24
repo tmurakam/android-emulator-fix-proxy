@@ -55,18 +55,21 @@ public class Server {
                     System.err.println("Unknown host: " + fProxyServer);
                     return;
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    System.err.println(e.getMessage());
                     return;
                 }
 
                 // クライアントから先頭6バイトを読む : CONNECT メソッド判別
                 InputStream in = fClient.getInputStream();
-
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
+
                 while (true) {
                     int ch = in.read();
                     bos.write(ch);
-                    if (ch == -1 || ch == '\n') break;
+                    if (ch == -1) {
+                        throw new RuntimeException("No request line");
+                    }
+                    if (ch == '\n') break;
                 }
                 String requestLine = bos.toString("UTF-8");
                 fServer.getOutputStream().write(bos.toByteArray());
@@ -76,13 +79,13 @@ public class Server {
 
                 // server -> client フォワーダ起動
                 forwarder(requestLine.startsWith("CONNECT"));
-            } catch (IOException e) {
+            }
+            catch (Exception e) {
                 System.err.println(e.getMessage());
-            } finally {
+            }
+            finally {
                 try {
-                    if (fServer != null) {
-                        fServer.close();
-                    }
+                    fServer.close();
                     fClient.close();
                 } catch (IOException e) {
                     // ignore
