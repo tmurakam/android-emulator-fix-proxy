@@ -13,3 +13,9 @@ repositories {
 dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.11'
 }
+
+jar {
+    manifest.attributes 'Main-Class': 'org.tmurakam.android.emufix.Main'
+}
+
+
