@@ -1,9 +1,15 @@
 package org.tmurakam.android.emufix;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
 import java.util.logging.Logger;
 
 /**
@@ -23,10 +29,12 @@ public class Server {
     }
 
     public void run() {
-        try (ServerSocket server = new ServerSocket(fLocalPort)) {
+        try (ServerSocketChannel server = ServerSocketChannel.open()) {
+            server.bind(new InetSocketAddress(fLocalPort));
             logger.info("Server started");
+
             while (true) {
-                Socket socket = server.accept();
+                SocketChannel socket = server.accept();
 
                 logger.info("Client connected");
                 new ServerForwarderThread(socket).start();
@@ -37,10 +45,10 @@ public class Server {
     }
 
     private class ServerForwarderThread extends Thread {
-        private Socket fClient;
-        private Socket fServer = null;
+        private SocketChannel fClient;
+        private SocketChannel fServer = null;
 
-        public ServerForwarderThread(Socket client) {
+        public ServerForwarderThread(SocketChannel client) {
             fClient = client;
         }
 
@@ -48,7 +56,8 @@ public class Server {
             try {
                 // connect proxy server
                 try {
-                    fServer = new Socket(fProxyServer, fProxyPort);
+                    fServer = SocketChannel.open();
+                    fServer.connect(new InetSocketAddress(fProxyServer, fProxyPort));
                 } catch (UnknownHostException e) {
                     logger.warning("Unknown proxy host: " + e.getMessage());
                     return;
@@ -58,17 +67,13 @@ public class Server {
                 }
 
                 // Read request line from client
-                String requestLine = Utils.readLine(fClient.getInputStream());
-                fServer.getOutputStream().write(requestLine.getBytes("UTF-8"));
+                ByteBuffer requestLine = Utils.readLine(fClient);
+                fServer.write(requestLine);
 
-                logger.finer(requestLine);
+                String strRequestLine = new String(requestLine.array(), "UTF-8");
+                logger.finer(strRequestLine);
 
-                // start client -> server forwarder
-                new PlainForwarderThread(fClient, fServer).start();
-
-                // run server -> client forwarder
-                Forwarder.forwardServerResponse(fServer.getInputStream(), fClient.getOutputStream(),
-                        requestLine.startsWith("CONNECT"));
+                mainLoop(strRequestLine.startsWith("CONNECT"));
             }
             catch (Exception e) {
                 logger.warning(e.getMessage());
@@ -85,11 +90,32 @@ public class Server {
                 }
             }
         }
+
+        private void mainLoop(boolean isConnectMethod) throws IOException {
+            fServer.configureBlocking(false);
+            fClient.configureBlocking(false);
+
+            Selector selector = Selector.open();
+            fServer.register(selector, SelectionKey.OP_READ);
+            fClient.register(selector, SelectionKey.OP_READ);
+
+            while (selector.select() > 0) {
+                for (SelectionKey key : selector.selectedKeys()) {
+                    if (key.channel() == fServer) {
+                        // TODO:
+                    }
+                    else if (key.channel() == fClient) {
+                        // TODO:
+                    }
+                }
+            }
+        }
     }
 
     /**
      * Plain forwarder thread
      */
+    /*
     private static class PlainForwarderThread extends Thread {
         private Socket fInSocket;
         private Socket fOutSocket;
@@ -115,4 +141,5 @@ public class Server {
             }
         }
     }
+    */
 }
