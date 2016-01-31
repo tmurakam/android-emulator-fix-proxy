@@ -1,6 +1,8 @@
 Android Emulator Proxy Fix Forwarder
 =====================================
 
+[![Build Status](https://travis-ci.org/tmurakam/android-emulator-proxy-forwarder.svg?branch=master)](https://travis-ci.org/tmurakam/android-emulator-proxy-forwarder)
+
 概要
 ----
 
