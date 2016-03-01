@@ -39,3 +39,11 @@ local port に forwarder 側のポート番号、upstream proxy server, upstream
 Android Emulator の起動時には以下のオプションを指定してください。
 
     -http-proxy http://localhost:[local port]
+
+Android Emulator 本体側の修正について
+--------------------------------------
+
+この問題を修正するためのパッチを [Change 178650](https://android-review.googlesource.com/#/c/178650/) として提出していますが、現時点ではまだ取り込まれていません。
+
+2016/3/1 にコードレビューに入った状況ですので、今後取り込まれるものと思われます。
+
